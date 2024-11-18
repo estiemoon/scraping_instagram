@@ -10,12 +10,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.keys import Keys
-
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
 load_dotenv()
-EMAIL = os.getenv("EMAIL3")
-PASSWORD = os.getenv("PASSWORD3")
+EMAIL = os.getenv("EMAIL6")
+PASSWORD = os.getenv("PASSWORD6")
 
 #settings
 options = Options()
@@ -51,64 +50,6 @@ def get_post_date(driver, p):
     
     return date
 
-#dynamic 때문에 쓸 수가 없나?
-def binary_search_dates(driver, posts, target):
-    left, right = 0,len(posts)-1
-
-    while left < right:
-        mid = (left+right)//2
-        d = get_post_date(driver,posts[mid])
-        if d <= target:
-            right = mid
-        else:
-            left = mid + 1
-    
-    return left
-
-def find_post_in_date(posts, before, after):
-    
-    start_idx = binary_search_dates(driver,posts,before)
-    end_idx  = binary_search_dates(driver, posts,after)
-    
-    return start_idx, end_idx
-
-def check_date(driver, all_posts,s,e):
-    print("checkdate s e", s,e)
-    end = all_posts[s]
-    start = all_posts[e]
-    
-    end_date = get_post_date(driver, end)
-    start_date = get_post_date(driver, start)
-    
-    return end_date, start_date
-    
-    
-#e after,s before
-def sum_likes_counts(driver,all_posts, e,s):
-    posts = all_posts[s:e+1]
-    result = [0,0,0]
-    for p in posts:
-        values = []
-        attrs = p.find_elements(By.CSS_SELECTOR, 'span.html-span')
-        for t in attrs:
-            values.append(t.get_attribute('textContent').strip())
-        
-        for i,attr in enumerate(result):
-            try:
-                v = list(values[i])
-                if '만' in v:
-                    values[i] = int(float(values[i].replace("만", "")) * 10000)
-            
-                result[i] += int(values[i])
-            except IndexError:
-                result[i] += 0  
-                
-    likes, comments, watches = result[0],result[1],result[2]
-        
-    return likes, comments, watches
-    
-
-
 def collect_reels_posts(driver,before,after):
     SCROLL_PAUSE_TIME = 2  
     last_height = driver.execute_script("return document.body.scrollHeight")
@@ -118,16 +59,18 @@ def collect_reels_posts(driver,before,after):
     count = 0
     stop = False
     while True:
-        posts = driver.find_elements(By.CSS_SELECTOR, 'div._aajz')  
+        posts = driver.find_elements(By.CSS_SELECTOR, 'div._aajy')  
+        if (not len(posts)):
+            posts = driver.find_elements(By.CSS_SELECTOR, 'div._aajz')  
                 # Identify new posts by checking difference
         new_posts = [post for post in posts if post not in all_posts]
+        time.sleep(1)
         if new_posts:
             for post in new_posts:
                 date = get_post_date(driver, post)
                 result = [0,0,0]
                 
                 if date < after: #기간 전이면 break(이후 게시물은 없으니까)
-                    stop = True
                     break
                 elif date > before: #기간 후면 넘어가기
                     continue
@@ -158,9 +101,8 @@ def collect_reels_posts(driver,before,after):
         driver.find_element(By.TAG_NAME, 'body').send_keys(Keys.END)
         time.sleep(SCROLL_PAUSE_TIME)
 
-        # Check if we've reached the bottom
         new_height = driver.execute_script("return document.body.scrollHeight")
-        if stop or new_height == last_height:
+        if new_height == last_height:
             break
         last_height = new_height
 
@@ -176,10 +118,8 @@ def scraping(df, before, after):
     cnts = []
     start_dates = []
     end_dates = []
-    
-    row_start = 100
-    row_end = 200
-    peoples = df.iloc[row_start:row_end,0]
+
+    peoples = df.iloc[:,0]
     
     for idx, name in enumerate(peoples):
         print(name)
@@ -218,8 +158,23 @@ def scraping(df, before, after):
         print(name, l, c, w, f, cnt)
         
 
-    return ids, likes, comments, watches, followers, cnt
+    return ids, likes, comments, watches, followers, cnts
 
+def results(data):
+
+    def str_to_int(x):
+        if isinstance(x,str):
+            if x[-1] == '만':
+                x = int(float(x.replace("만", "")) * 10000)
+            x = int(x)
+        
+        return x
+    
+    followers_int = data.iloc[:,12].map(str_to_int)
+    data["팔로워수2"] = followers_int
+    print(followers_int.head(5))
+    data.to_excel('result1.0.xlsx')
+    
 
 def main():
 
@@ -227,7 +182,7 @@ def main():
     df = pd.DataFrame()
      
     login()
-    time.sleep(5)
+    time.sleep(20)
     
     ##수정
     before = '2024-04-10'
@@ -245,11 +200,11 @@ def main():
     df["댓글 총개수"] = comments
     df["릴스 조회수"] = watches
     df["팔로워 수"] = followers
-
-
-    print(df)
     
-    df.to_excel('output3.xlsx')
+    df.to_excel('output_example2.xlsx')
+    
+    # output_data = pd.read_excel("files/peoples.xlsx",sheet_name ="main sheet")    
+    # results(output_data)
 
 
 if __name__ == "__main__":
